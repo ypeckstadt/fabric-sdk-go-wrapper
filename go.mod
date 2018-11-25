@@ -1,1 +1,0 @@
-module github.com/ypeckstadt/fabric-sdk-go-wrapper
