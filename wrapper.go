@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	IdentityTypeUser = "user"
+	IdentityTypeUser = "client"
 )
 
 // New creates a new FabricSDKWrapper service
