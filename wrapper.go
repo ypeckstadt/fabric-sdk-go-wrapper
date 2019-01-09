@@ -269,6 +269,22 @@ func (w *FabricSDKWrapper) GetEnrolledUser(userName string, orgName string) (*ms
 	return mspClient.GetIdentity(userName)
 }
 
+// RemoveIdentity removes a Hyperledger Fabric CA user
+func (w *FabricSDKWrapper) RemoveEnrolledUser(userName string, orgName string) (*msp.IdentityResponse, error) {
+	ctxProvider := w.sdk.Context()
+	// Get the Client.
+	// Without WithOrg option, uses default client organization.
+	mspClient, err := msp.New(ctxProvider, msp.WithOrg(orgName))
+	if err != nil {
+		return nil, err
+	}
+
+	return mspClient.RemoveIdentity(&msp.RemoveIdentityRequest{
+		ID:userName,
+		Force:true,
+	})
+}
+
 func (w *FabricSDKWrapper) createMSPClient(orgName string) (*mspclient.Client, error) {
 	mspClient, err := mspclient.New(w.sdk.Context(), mspclient.WithOrg(orgName))
 	if err != nil {
