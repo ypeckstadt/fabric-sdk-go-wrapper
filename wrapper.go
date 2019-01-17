@@ -299,7 +299,6 @@ func (w *FabricSDKWrapper) createChannelClient(channelID string, userName string
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create new channel client")
 	}
-	fmt.Println("Channel client created")
 	return client, nil
 }
 
