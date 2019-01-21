@@ -34,8 +34,16 @@ func New() *FabricSDKWrapper {
 type FabricSDKWrapper struct {
 	sdk 	*fabsdk.FabricSDK
 	admin	*resmgmt.Client
-	CustomCoreFactory *msp2.CustomCoreFactory
-	CustomMSPFactory *msp2.CustomMSPFactory
+	hasCustomKeyStore bool
+	customCoreFactory *msp2.CustomCoreFactory
+	customMSPFactory *msp2.CustomMSPFactory
+}
+
+// SetCustomKeyStore sets a custom keystore provider
+func (w *FabricSDKWrapper) SetCustomKeyStore(coreFactory *msp2.CustomCoreFactory, mspFactory *msp2.CustomMSPFactory) {
+	w.customCoreFactory = coreFactory
+	w.customMSPFactory =  mspFactory
+	w.hasCustomKeyStore = true
 }
 
 // InitializeByFile creates a Hyperledger Fabric SDK instance and loads the SDK config from a file path
@@ -47,10 +55,10 @@ func (w *FabricSDKWrapper) InitializeByFile(configFile string, orgAdmin string, 
 
 	// create the sdk with custom core factory and msp factory if provided so we can use an external keystore provider
 	// Todo: implement a builder for this so multiple combinations are possible
-	if (&msp2.CustomCoreFactory{}) == (w.CustomCoreFactory) && (&msp2.CustomMSPFactory{}) == w.CustomMSPFactory  {
-		sdk, err = fabsdk.New(config.FromFile(configFile))
+	if w.hasCustomKeyStore  {
+		sdk, err = fabsdk.New(config.FromFile(configFile), fabsdk.WithCorePkg(w.customCoreFactory), fabsdk.WithMSPPkg(w.customMSPFactory))
 	} else {
-		sdk, err = fabsdk.New(config.FromFile(configFile), fabsdk.WithCorePkg(w.CustomCoreFactory), fabsdk.WithMSPPkg(w.CustomMSPFactory))
+		sdk, err = fabsdk.New(config.FromFile(configFile))
 	}
 	if err != nil {
 		return errors.WithMessage(err, "failed to create SDK")
