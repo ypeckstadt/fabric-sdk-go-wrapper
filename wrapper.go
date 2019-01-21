@@ -11,6 +11,7 @@ import (
 	packager "github.com/hyperledger/fabric-sdk-go/pkg/fab/ccpackager/gopackager"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fab/resource"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fabsdk"
+	msp2 "github.com/hyperledger/fabric-sdk-go/test/integration/pkg/client/msp"
 	"github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/common"
 	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 	"github.com/pkg/errors"
@@ -33,13 +34,24 @@ func New() *FabricSDKWrapper {
 type FabricSDKWrapper struct {
 	sdk 	*fabsdk.FabricSDK
 	admin	*resmgmt.Client
+	CustomCoreFactory *msp2.CustomCoreFactory
+	CustomMSPFactory *msp2.CustomMSPFactory
 }
 
 // InitializeByFile creates a Hyperledger Fabric SDK instance and loads the SDK config from a file path
 // The SDK is initialized per organization
 func (w *FabricSDKWrapper) InitializeByFile(configFile string, orgAdmin string, orgName string) error {
 	// Initialize the SDK with the configuration file
-	sdk, err := fabsdk.New(config.FromFile(configFile))
+	var sdk *fabsdk.FabricSDK
+	var err error
+
+	// create the sdk with custom core factory and msp factory if provided so we can use an external keystore provider
+	// Todo: implement a builder for this so multiple combinations are possible
+	if (&msp2.CustomCoreFactory{}) == (w.CustomCoreFactory) && (&msp2.CustomMSPFactory{}) == w.CustomMSPFactory  {
+		sdk, err = fabsdk.New(config.FromFile(configFile))
+	} else {
+		sdk, err = fabsdk.New(config.FromFile(configFile), fabsdk.WithCorePkg(w.CustomCoreFactory), fabsdk.WithMSPPkg(w.CustomMSPFactory))
+	}
 	if err != nil {
 		return errors.WithMessage(err, "failed to create SDK")
 	}
