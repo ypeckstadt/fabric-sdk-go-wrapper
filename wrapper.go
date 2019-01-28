@@ -13,7 +13,6 @@ import (
 	packager "github.com/hyperledger/fabric-sdk-go/pkg/fab/ccpackager/gopackager"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fab/resource"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fabsdk"
-	msp2 "github.com/hyperledger/fabric-sdk-go/test/integration/msp"
 	"github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/common"
 	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 	"github.com/pkg/errors"
@@ -34,16 +33,6 @@ func New() *FabricSDKWrapper {
 type FabricSDKWrapper struct {
 	sdk 	*fabsdk.FabricSDK
 	admin	*resmgmt.Client
-	hasCustomKeyStore bool
-	customCoreFactory *msp2.CustomCoreFactory
-	customMSPFactory *msp2.CustomMSPFactory
-}
-
-// SetCustomKeyStore sets a custom keystore provider
-func (w *FabricSDKWrapper) SetCustomKeyStore(coreFactory *msp2.CustomCoreFactory, mspFactory *msp2.CustomMSPFactory) {
-	w.customCoreFactory = coreFactory
-	w.customMSPFactory =  mspFactory
-	w.hasCustomKeyStore = true
 }
 
 // InitializeByFile creates a Hyperledger Fabric SDK instance and loads the SDK config from a file path
@@ -53,13 +42,8 @@ func (w *FabricSDKWrapper) InitializeByFile(configFile string, orgAdmin string, 
 	var sdk *fabsdk.FabricSDK
 	var err error
 
-	// create the sdk with custom core factory and msp factory if provided so we can use an external keystore provider
-	// Todo: implement a builder for this so multiple combinations are possible
-	if w.hasCustomKeyStore  {
-		sdk, err = fabsdk.New(config.FromFile(configFile), fabsdk.WithCorePkg(w.customCoreFactory), fabsdk.WithMSPPkg(w.customMSPFactory))
-	} else {
-		sdk, err = fabsdk.New(config.FromFile(configFile))
-	}
+	sdk, err = fabsdk.New(config.FromFile(configFile))
+
 	if err != nil {
 		return errors.WithMessage(err, "failed to create SDK")
 	}
@@ -226,13 +210,13 @@ func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID 
 }
 
 // EnrollUser enrolls a new Fabric CA user
-func (w *FabricSDKWrapper) EnrollUser(userName string, orgName string) (error) {
+func (w *FabricSDKWrapper) EnrollUser(userName string, orgName string) error {
 	ctxProvider := w.sdk.Context()
 	mspClient, err := msp.New(ctxProvider)
+
 	if err != nil {
 		return err
 	}
-
 	// check if the user is already registered or not
 	_, err = mspClient.GetIdentity(userName)
 	if err == nil {
