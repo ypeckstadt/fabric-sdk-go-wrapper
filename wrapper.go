@@ -143,17 +143,14 @@ func (w *FabricSDKWrapper) InstantiateChaincode(channelID string, chaincodeID st
 // Invoke executes a Hyperledger Fabric transaction
 func (w *FabricSDKWrapper) Invoke(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) ([]byte, error) {
 
-	// TODO
-	// transient map data
-	// listen for chaincode events
-	// selection provider options, currently static
+	// TODO transient map data
+	// TODO listen for chaincode events
+	// TODO selection provider options, currently static, add option to send select peers
+	// TODO retry options are missing
 	// TODO set target of the transaction
 
-	// Prepend chaincode function name  to argument list
-	args = append([]string{ccFunctionName}, args...)
-
 	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
+	//transientDataMap := make(map[string][]byte)
 
 	// Create channel client
 	channelClient, err := w.createChannelClient(channelID, userName)
@@ -161,15 +158,15 @@ func (w *FabricSDKWrapper) Invoke(channelID string, userName string, chaincodeID
 	// Create invoke request
 	request := channel.Request{
 		ChaincodeID: chaincodeID,
-		Fcn: "invoke",
+		Fcn: ccFunctionName,
 		Args:  utils.AsBytes(args),
-		TransientMap: transientDataMap,
+		//TransientMap: transientDataMap,
 	}
 
 	// Create a request (proposal) and send it
 	response, err := channelClient.Execute(request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to move funds: %v", err)
+		return nil, invokeerror.Errorf(invokeerror.TransientError, "SendTransactionProposal return error: %v", err)
 	}
 
 	// Wait and check transaction response - result
@@ -186,10 +183,6 @@ func (w *FabricSDKWrapper) Invoke(channelID string, userName string, chaincodeID
 
 // Query executes a Hyperledger Fabric query
 func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) ([]byte, error) {
-	// Prepend chaincode function name  to argument list
-	args = append([]string{ccFunctionName}, args...)
-
-	// Create channel client
 	channelClient, err := w.createChannelClient(channelID, userName)
 	if (err != nil) {
 		return nil, err
@@ -198,7 +191,7 @@ func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID 
 	if response, err := channelClient.Query(
 		channel.Request{
 			ChaincodeID: chaincodeID,
-			Fcn:         "invoke",
+			Fcn:         ccFunctionName,
 			Args:        utils.AsBytes(args),
 		},
 	); err != nil {
