@@ -141,7 +141,7 @@ func (w *FabricSDKWrapper) InstantiateChaincode(channelID string, chaincodeID st
 }
 
 // Invoke executes a Hyperledger Fabric transaction
-func (w *FabricSDKWrapper) Invoke(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) ([]byte, error) {
+func (w *FabricSDKWrapper) Invoke(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) (channel.Response, error) {
 
 	// TODO transient map data
 	// TODO listen for chaincode events
@@ -166,19 +166,20 @@ func (w *FabricSDKWrapper) Invoke(channelID string, userName string, chaincodeID
 	// Create a request (proposal) and send it
 	response, err := channelClient.Execute(request)
 	if err != nil {
-		return nil, invokeerror.Errorf(invokeerror.TransientError, "SendTransactionProposal return error: %v", err)
+		return response, invokeerror.Errorf(invokeerror.TransientError, "SendTransactionProposal return error: %v", err)
 	}
 
 	// Wait and check transaction response - result
 	switch pb.TxValidationCode(response.TxValidationCode) {
 		case pb.TxValidationCode_VALID:
-			return response.Responses[0].GetResponse().Payload, nil
+			//return response.Responses[0].GetResponse().Payload, nil
+			return response, nil
 		case pb.TxValidationCode_DUPLICATE_TXID, pb.TxValidationCode_MVCC_READ_CONFLICT, pb.TxValidationCode_PHANTOM_READ_CONFLICT:
-			return nil, invokeerror.Wrapf(invokeerror.TransientError, errors.New("Duplicate TxID"), "invoke Error received from eventhub for TxID [%s]. Code: %s", response.TransactionID, response.TxValidationCode)
+			return response, invokeerror.Wrapf(invokeerror.TransientError, errors.New("Duplicate TxID"), "invoke Error received from eventhub for TxID [%s]. Code: %s", response.TransactionID, response.TxValidationCode)
 		default:
-			return nil, invokeerror.Wrapf(invokeerror.PersistentError, errors.New("error"), "invoke Error received from eventhub for TxID [%s]. Code: %s", response.TransactionID, response.TxValidationCode)
+			return response, invokeerror.Wrapf(invokeerror.PersistentError, errors.New("error"), "invoke Error received from eventhub for TxID [%s]. Code: %s", response.TransactionID, response.TxValidationCode)
 	}
-	return nil, nil
+	return response, nil
 }
 
 // Query executes a Hyperledger Fabric query
@@ -280,6 +281,11 @@ func (w *FabricSDKWrapper) RemoveEnrolledUser(userName string, orgName string) (
 		ID:userName,
 		Force:true,
 	})
+}
+
+// GetPayloadFromResponse returns the payload from the provided channel response
+func (w *FabricSDKWrapper) GetPayloadFromResponse(response *channel.Response) []byte {
+	return response.Responses[0].GetResponse().Payload
 }
 
 func (w *FabricSDKWrapper) createMSPClient(orgName string) (*mspclient.Client, error) {
