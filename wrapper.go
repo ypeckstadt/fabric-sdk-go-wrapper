@@ -183,24 +183,25 @@ func (w *FabricSDKWrapper) Invoke(channelID string, userName string, chaincodeID
 }
 
 // Query executes a Hyperledger Fabric query
-func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) ([]byte, error) {
+func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) (channel.Response, error) {
 	channelClient, err := w.createChannelClient(channelID, userName)
-	if (err != nil) {
-		return nil, err
+
+	if err != nil {
+		return channel.Response{}, err
 	}
 
-	if response, err := channelClient.Query(
+	response, err := channelClient.Query(
 		channel.Request{
 			ChaincodeID: chaincodeID,
 			Fcn:         ccFunctionName,
 			Args:        utils.AsBytes(args),
-		},
-	); err != nil {
-		return nil, err
-	} else {
-		return response.Payload, nil
+		})
+
+	if err != nil {
+		return response, err
 	}
-	return nil, nil
+
+	return response, nil
 }
 
 // EnrollUser enrolls a new Fabric CA user
