@@ -182,6 +182,30 @@ func (w *FabricSDKWrapper) Invoke(channelID string, userName string, chaincodeID
 	return response, nil
 }
 
+// AsyncInvoke executes a Hyperledger Fabric transaction asycn
+func (w *FabricSDKWrapper) AsyncInvoke(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) (channel.Response, error) {
+
+	// TODO implement callbackURL and remaining todos for normal invoke
+
+	// Create channel client
+	channelClient, err := w.createChannelClient(channelID, userName)
+
+	// Create invoke request
+	request := channel.Request{
+		ChaincodeID: chaincodeID,
+		Fcn: ccFunctionName,
+		Args:  utils.AsBytes(args),
+	}
+
+	// Create a request (proposal) and send it
+	response, err := channelClient.Execute(request)
+	if err != nil {
+		return response, invokeerror.Errorf(invokeerror.TransientError, "SendTransactionProposal return error: %v", err)
+	}
+
+	return response, nil
+}
+
 // Query executes a Hyperledger Fabric query
 func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) (channel.Response, error) {
 	channelClient, err := w.createChannelClient(channelID, userName)
