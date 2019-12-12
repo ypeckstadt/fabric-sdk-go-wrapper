@@ -2,6 +2,7 @@ package wrapper
 
 import (
 	"fmt"
+	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/channel"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/msp"
 	mspclient "github.com/hyperledger/fabric-sdk-go/pkg/client/msp"
@@ -13,8 +14,6 @@ import (
 	packager "github.com/hyperledger/fabric-sdk-go/pkg/fab/ccpackager/gopackager"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fab/resource"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fabsdk"
-	"github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/common"
-	pb "github.com/hyperledger/fabric-sdk-go/third_party/github.com/hyperledger/fabric/protos/peer"
 	"github.com/pkg/errors"
 	"github.com/securekey/fabric-examples/fabric-cli/cmd/fabric-cli/chaincode/invokeerror"
 	"github.com/ypeckstadt/fabric-sdk-go-wrapper/utils"
@@ -141,44 +140,45 @@ func (w *FabricSDKWrapper) InstantiateChaincode(channelID string, chaincodeID st
 }
 
 // Invoke executes a Hyperledger Fabric transaction
-func (w *FabricSDKWrapper) Invoke(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) (channel.Response, error) {
-
-	// TODO transient map data
-	// TODO listen for chaincode events
-	// TODO selection provider options, currently static, add option to send select peers
-	// TODO retry options are missing
-	// TODO set target of the transaction
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	//transientDataMap := make(map[string][]byte)
+func (w *FabricSDKWrapper) Invoke(
+	channelID string,
+	userName string,
+	chaincodeID string,
+	ccFunctionName string,
+	args []string,
+	targetEndpoints ...string,
+	) (channel.Response, error) {
 
 	// Create channel client
 	channelClient, err := w.createChannelClient(channelID, userName)
 
 	// Create invoke request
-	request := channel.Request{
+	invokeRequest := channel.Request{
 		ChaincodeID: chaincodeID,
 		Fcn: ccFunctionName,
 		Args:  utils.AsBytes(args),
-		//TransientMap: transientDataMap,
 	}
 
 	// Create a request (proposal) and send it
-	response, err := channelClient.Execute(request)
+	response, err := channelClient.Execute(
+		invokeRequest,
+		channel.WithRetry(retry.DefaultChannelOpts),
+		channel.WithTargetEndpoints(targetEndpoints...),
+		)
 	if err != nil {
 		return response, invokeerror.Errorf(invokeerror.TransientError, "SendTransactionProposal return error: %v", err)
 	}
 
-	// Wait and check transaction response - result
-	switch pb.TxValidationCode(response.TxValidationCode) {
-		case pb.TxValidationCode_VALID:
-			//return response.Responses[0].GetResponse().Payload, nil
-			return response, nil
-		case pb.TxValidationCode_DUPLICATE_TXID, pb.TxValidationCode_MVCC_READ_CONFLICT, pb.TxValidationCode_PHANTOM_READ_CONFLICT:
-			return response, invokeerror.Wrapf(invokeerror.TransientError, errors.New("Duplicate TxID"), "invoke Error received from eventhub for TxID [%s]. Code: %s", response.TransactionID, response.TxValidationCode)
-		default:
-			return response, invokeerror.Wrapf(invokeerror.PersistentError, errors.New("error"), "invoke Error received from eventhub for TxID [%s]. Code: %s", response.TransactionID, response.TxValidationCode)
-	}
+	//// Wait and check transaction response - result
+	//switch pb.TxValidationCode(response.TxValidationCode) {
+	//	case pb.TxValidationCode_VALID:
+	//		//return response.Responses[0].GetResponse().Payload, nil
+	//		return response, nil
+	//	case pb.TxValidationCode_DUPLICATE_TXID, pb.TxValidationCode_MVCC_READ_CONFLICT, pb.TxValidationCode_PHANTOM_READ_CONFLICT:
+	//		return response, invokeerror.Wrapf(invokeerror.TransientError, errors.New("Duplicate TxID"), "invoke Error received from eventhub for TxID [%s]. Code: %s", response.TransactionID, response.TxValidationCode)
+	//	default:
+	//		return response, invokeerror.Wrapf(invokeerror.PersistentError, errors.New("error"), "invoke Error received from eventhub for TxID [%s]. Code: %s", response.TransactionID, response.TxValidationCode)
+	//}
 	return response, nil
 }
 
@@ -207,7 +207,7 @@ func (w *FabricSDKWrapper) AsyncInvoke(channelID string, userName string, chainc
 }
 
 // Query executes a Hyperledger Fabric query
-func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) (channel.Response, error) {
+func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string, targetEndpoints ...string) (channel.Response, error) {
 	channelClient, err := w.createChannelClient(channelID, userName)
 
 	if err != nil {
@@ -219,7 +219,10 @@ func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID 
 			ChaincodeID: chaincodeID,
 			Fcn:         ccFunctionName,
 			Args:        utils.AsBytes(args),
-		})
+		},
+		channel.WithRetry(retry.DefaultChannelOpts),
+		channel.WithTargetEndpoints(targetEndpoints...),
+		)
 
 	if err != nil {
 		return response, err
@@ -322,8 +325,8 @@ func (w *FabricSDKWrapper) createMSPClient(orgName string) (*mspclient.Client, e
 }
 
 func (w *FabricSDKWrapper) createChannelClient(channelID string, userName string) (*channel.Client, error) {
-	clientContext := w.sdk.ChannelContext(channelID, fabsdk.WithUser(userName))
-	client, err := channel.New(clientContext)
+	clientChannelContext := w.sdk.ChannelContext(channelID, fabsdk.WithUser(userName))
+	client, err := channel.New(clientChannelContext)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create new channel client")
 	}
