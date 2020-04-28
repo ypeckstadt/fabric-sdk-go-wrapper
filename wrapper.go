@@ -1,18 +1,13 @@
 package wrapper
 
 import (
-	"fmt"
-	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/channel"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/msp"
 	mspclient "github.com/hyperledger/fabric-sdk-go/pkg/client/msp"
-	"github.com/hyperledger/fabric-sdk-go/pkg/client/resmgmt"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/retry"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/context"
 	mspapi "github.com/hyperledger/fabric-sdk-go/pkg/common/providers/msp"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config"
-	packager "github.com/hyperledger/fabric-sdk-go/pkg/fab/ccpackager/gopackager"
-	"github.com/hyperledger/fabric-sdk-go/pkg/fab/resource"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fabsdk"
 	"github.com/pkg/errors"
 	"github.com/securekey/fabric-examples/fabric-cli/cmd/fabric-cli/chaincode/invokeerror"
@@ -31,7 +26,6 @@ func New() *FabricSDKWrapper {
 // FabricSDKWrapper implementation
 type FabricSDKWrapper struct {
 	sdk 	*fabsdk.FabricSDK
-	admin	*resmgmt.Client
 }
 
 // InitializeByFile creates a Hyperledger Fabric SDK instance and loads the SDK config from a file path
@@ -48,60 +42,25 @@ func (w *FabricSDKWrapper) InitializeByFile(configFile string, orgAdmin string, 
 	}
 	w.sdk = sdk
 
-	// The resource management client is responsible for managing channels (create/update channel)
-	resourceManagerClientContext := sdk.Context(fabsdk.WithUser(orgAdmin), fabsdk.WithOrg(orgName))
-	if err != nil {
-		return errors.WithMessage(err, "failed to load Admin identity")
-	}
-	resMgmtClient, err := resmgmt.New(resourceManagerClientContext)
-	if err != nil {
-		return errors.WithMessage(err, "failed to create channel management client from Admin identity")
-	}
-	w.admin = resMgmtClient
-	fmt.Println("Ressource management client created")
+	// TODO: code currently disabled as channel and chaincode creation does not work
+	//// The resource management client is responsible for managing channels (create/update channel)
+	//resourceManagerClientContext := sdk.Context(fabsdk.WithUser(orgAdmin), fabsdk.WithOrg(orgName))
+	//if err != nil {
+	//	return errors.WithMessage(err, "failed to load Admin identity")
+	//}
+	//resMgmtClient, err := resmgmt.New(resourceManagerClientContext)
+	//if err != nil {
+	//	return errors.WithMessage(err, "failed to create channel management client from Admin identity")
+	//}
+	//w.admin = resMgmtClient
+	//fmt.Println("Ressource management client created")
 
-	return nil
-}
-
-// CreateChannel creates a Hyperledger Fabric channel
-func (w *FabricSDKWrapper) CreateChannel(channelID string, channelConfig string, ordererID string) error {
-	adminIdentity, err := w.GetSigningIdentity("org1", "Admin")
-	if err != nil {
-		return err
-	}
-	req := resmgmt.SaveChannelRequest{ChannelID: channelID, ChannelConfigPath: channelConfig, SigningIdentities: []mspapi.SigningIdentity{adminIdentity}}
-	txID, err := w.admin.SaveChannel(req, resmgmt.WithOrdererEndpoint(ordererID))
-	if err != nil || txID.TransactionID == "" {
-		return errors.WithMessage(err, "failed to save channel")
-	}
-	fmt.Println("Channel created")
-	return nil
-}
-
-// JoinChannel lets the peers join the channel
-func (w *FabricSDKWrapper) JoinChannel(channelID string, ordererID string) error {
-	// Make admin user join the previously created channel
-	if err := w.admin.JoinChannel(channelID, resmgmt.WithRetry(retry.DefaultResMgmtOpts), resmgmt.WithOrdererEndpoint(ordererID)); err != nil {
-		return errors.WithMessage(err, "failed to make admin join channel")
-	}
-	fmt.Println("Channel joined")
 	return nil
 }
 
 // Close closes the SDK
 func (w *FabricSDKWrapper) Close() {
 	w.sdk.Close()
-}
-
-// CreateChaincodePackage creates a Hyperledger Fabric package ready for installation
-func (w *FabricSDKWrapper) CreateChaincodePackage(chaincodePath string, chaincodeGoPath string) (*resource.CCPackage, error) {
-	// Create the chaincode package that will be sent to the peers
-	ccPkg, err := packager.NewCCPackage(chaincodePath, chaincodeGoPath)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to create chaincode package")
-	}
-	fmt.Println("ccPkg created")
-	return ccPkg, nil
 }
 
 // GetSigningIdentity returns an organization identity
@@ -117,32 +76,11 @@ func (w *FabricSDKWrapper) GetSigningIdentity(orgName string, userName string) (
 	return identity, nil
 }
 
-// InstallChaincode installs chaincode on a selected peer or all of them
-func (w *FabricSDKWrapper) InstallChaincode(chaincodeID string, chaincodePath string, ccPkg *resource.CCPackage) error {
-	// Install example cc to org peers
-	installCCReq := resmgmt.InstallCCRequest{Name: chaincodeID, Path: chaincodePath, Version: "0", Package: ccPkg}
-	_, err := w.admin.InstallCC(installCCReq, resmgmt.WithRetry(retry.DefaultResMgmtOpts))
-	if err != nil {
-		return errors.WithMessage(err, "failed to install chaincode")
-	}
-	fmt.Println("Chaincode installed")
-	return nil
-}
-
-// InstantiateChaincode instantiates selected chaincode on a channel
-func (w *FabricSDKWrapper) InstantiateChaincode(channelID string, chaincodeID string,chaincodeGoPath string, version string, ccPolicy *common.SignaturePolicyEnvelope) error {
-	resp, err := w.admin.InstantiateCC(channelID, resmgmt.InstantiateCCRequest{Name: chaincodeID, Path: chaincodeGoPath, Version: version, Args: [][]byte{[]byte("init")}, Policy: ccPolicy})
-	if err != nil || resp.TransactionID == "" {
-		return errors.WithMessage(err, "failed to instantiate the chaincode")
-	}
-	fmt.Println("Chaincode instantiated")
-	return nil
-}
-
 // Invoke executes a Hyperledger Fabric transaction
 func (w *FabricSDKWrapper) Invoke(
 	channelID string,
 	userName string,
+	orgName string,
 	chaincodeID string,
 	ccFunctionName string,
 	args []string,
@@ -150,7 +88,7 @@ func (w *FabricSDKWrapper) Invoke(
 	) (channel.Response, error) {
 
 	// Create channel client
-	channelClient, err := w.createChannelClient(channelID, userName)
+	channelClient, err := w.createChannelClient(channelID, userName, orgName)
 
 	// Create invoke request
 	invokeRequest := channel.Request{
@@ -183,12 +121,12 @@ func (w *FabricSDKWrapper) Invoke(
 }
 
 // AsyncInvoke executes a Hyperledger Fabric transaction asycn
-func (w *FabricSDKWrapper) AsyncInvoke(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string) (channel.Response, error) {
+func (w *FabricSDKWrapper) AsyncInvoke(channelID string, userName string, orgName string, chaincodeID string, ccFunctionName string, args []string) (channel.Response, error) {
 
 	// TODO implement callbackURL and remaining todos for normal invoke
 
 	// Create channel client
-	channelClient, err := w.createChannelClient(channelID, userName)
+	channelClient, err := w.createChannelClient(channelID, userName, orgName)
 
 	// Create invoke request
 	request := channel.Request{
@@ -207,8 +145,8 @@ func (w *FabricSDKWrapper) AsyncInvoke(channelID string, userName string, chainc
 }
 
 // Query executes a Hyperledger Fabric query
-func (w *FabricSDKWrapper) Query(channelID string, userName string, chaincodeID string, ccFunctionName string, args []string, targetEndpoints ...string) (channel.Response, error) {
-	channelClient, err := w.createChannelClient(channelID, userName)
+func (w *FabricSDKWrapper) Query(channelID string, userName string,orgName string, chaincodeID string, ccFunctionName string, args []string, targetEndpoints ...string) (channel.Response, error) {
+	channelClient, err := w.createChannelClient(channelID, userName, orgName)
 
 	if err != nil {
 		return channel.Response{}, err
@@ -295,11 +233,11 @@ func (w *FabricSDKWrapper) GetEnrolledUser(userName string, orgName string) (*ms
 	return mspClient.GetIdentity(userName)
 }
 
-// RemoveIdentity removes a Hyperledger Fabric CA user
+// RemoveEnrolledUser removes a Hyperledger Fabric CA user
+// by default it is not possible to remove users
 func (w *FabricSDKWrapper) RemoveEnrolledUser(userName string, orgName string) (*msp.IdentityResponse, error) {
 	ctxProvider := w.sdk.Context()
-	// Get the Client.
-	// Without WithOrg option, uses default client organization.
+
 	mspClient, err := msp.New(ctxProvider, msp.WithOrg(orgName))
 	if err != nil {
 		return nil, err
@@ -311,11 +249,40 @@ func (w *FabricSDKWrapper) RemoveEnrolledUser(userName string, orgName string) (
 	})
 }
 
+// ReEnrollUser re-enrolls a Hyperledger Fabric CA user
+func (w *FabricSDKWrapper) ReEnrollUser(enrollmentID string, orgName string)  error {
+	ctxProvider := w.sdk.Context()
+	mspClient, err := msp.New(ctxProvider, msp.WithOrg(orgName))
+	if err != nil {
+		return err
+	}
+
+	return mspClient.Reenroll(enrollmentID)
+}
+
+// RevokeUser revokes a Hyperledger Fabric CA user
+func (w *FabricSDKWrapper) RevokeUser(username string, orgName string, caName string, reason string)  (*mspclient.RevocationResponse, error) {
+	ctxProvider := w.sdk.Context()
+
+	mspClient, err := msp.New(ctxProvider, msp.WithOrg(orgName))
+	if err != nil {
+		return nil, err
+	}
+
+	revokeRequest := mspclient.RevocationRequest{
+		Name: username,
+		Reason: reason,
+		CAName: caName,
+	}
+	return mspClient.Revoke(&revokeRequest)
+}
+
 // GetPayloadFromResponse returns the payload from the provided channel response
 func (w *FabricSDKWrapper) GetPayloadFromResponse(response *channel.Response) []byte {
 	return response.Responses[0].GetResponse().Payload
 }
 
+// createMspClient creates the MSP client for the identity and organization
 func (w *FabricSDKWrapper) createMSPClient(orgName string) (*mspclient.Client, error) {
 	mspClient, err := mspclient.New(w.sdk.Context(), mspclient.WithOrg(orgName))
 	if err != nil {
@@ -324,8 +291,9 @@ func (w *FabricSDKWrapper) createMSPClient(orgName string) (*mspclient.Client, e
 	return mspClient, nil
 }
 
-func (w *FabricSDKWrapper) createChannelClient(channelID string, userName string) (*channel.Client, error) {
-	clientChannelContext := w.sdk.ChannelContext(channelID, fabsdk.WithUser(userName))
+// createChannelClient creates a channel client
+func (w *FabricSDKWrapper) createChannelClient(channelID string, userName string, orgName string) (*channel.Client, error) {
+	clientChannelContext := w.sdk.ChannelContext(channelID, fabsdk.WithUser(userName), fabsdk.WithOrg(orgName))
 	client, err := channel.New(clientChannelContext)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create new channel client")
@@ -333,6 +301,7 @@ func (w *FabricSDKWrapper) createChannelClient(channelID string, userName string
 	return client, nil
 }
 
+// getRegistrarEnrollmentCredentials returns the credentials for the organization's registrar user
 func (w *FabricSDKWrapper) getRegistrarEnrollmentCredentials(ctxProvider context.ClientProvider) (string, string) {
 	ctx, err := ctxProvider()
 	if err != nil {
@@ -341,10 +310,26 @@ func (w *FabricSDKWrapper) getRegistrarEnrollmentCredentials(ctxProvider context
 
 	myOrg := ctx.IdentityConfig().Client().Organization
 
-	caConfig, ok := ctx.IdentityConfig().CAConfig(myOrg)
+	caID, err := w.getCAForOrganization(ctx, myOrg)
+
+
+	caConfig, ok := ctx.IdentityConfig().CAConfig(caID)
 	if !ok {
 		return "", ""
 	}
 
 	return caConfig.Registrar.EnrollID, caConfig.Registrar.EnrollSecret
+}
+
+// getCAForOrganization returns the first found CA server for the provided organization based on the SDK configuration file
+func (w *FabricSDKWrapper) getCAForOrganization(context context.Client, org string) (string, error) {
+	organizations := context.EndpointConfig().NetworkConfig().Organizations
+	if organizations == nil || len(organizations) == 0 {
+		return "", errors.New("no organizations found")
+	}
+	if organizations[org].CertificateAuthorities == nil || len(organizations[org].CertificateAuthorities) == 0 {
+		return "", errors.New("no certificate authorities found")
+	}
+	ca := organizations[org].CertificateAuthorities[0]
+	return ca, errors.New("no CA found for the organization")
 }
