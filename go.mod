@@ -1,4 +1,4 @@
-module github.com/ypeckstadt/fabric-sdk-go-wrapper
+module github.com/ypeckstadt/fabric-sdk-go-wrapper/v2
 
 require (
 	github.com/cloudflare/cfssl v0.0.0-20181213083726-b94e044bb51e // indirect
